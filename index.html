@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0e0b16">
+<!-- install / home-screen as an app -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Party Tab">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<link rel="manifest" href="manifest.json">
+<title>Party Tab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- client-side PDF generation (works on phones, no print dialog needed) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0e0b16;
+    --ink-2:#15101f;
+    --surface:#1b1526;
+    --surface-2:#221a30;
+    --line:#2f2640;
+    --text:#f6f0e6;
+    --muted:#a298b4;
+    --coral:#ff4d6d;
+    --coral-soft:#ff789a;
+    --gold:#ffce5c;
+    --lime:#c8f560;
+    --bad:#ff6b5e;
+    --radius:20px;
+    --shadow:0 18px 40px -18px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--ink);
+    color:var(--text);
+    min-height:100vh;
+    line-height:1.45;
+    overflow-x:hidden;
+    position:relative;
+  }
+  /* atmospheric glows */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(60% 40% at 12% 0%, rgba(255,77,109,.22), transparent 60%),
+      radial-gradient(55% 35% at 95% 8%, rgba(255,206,92,.16), transparent 60%),
+      radial-gradient(70% 45% at 50% 100%, rgba(200,245,96,.10), transparent 60%);
+  }
+  /* subtle grain */
+  body::after{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.04;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:22px 18px 60px}
+
+  /* ---------- header ---------- */
+  header{
+    margin-bottom:22px;
+    animation:rise .6s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .brand .kick{
+    font-family:"DM Mono",monospace;font-size:11px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--coral-soft);margin-bottom:2px;display:block;
+  }
+  .brand h1{
+    font-family:"Syne",sans-serif;font-weight:800;font-size:34px;line-height:.95;
+    margin:0;letter-spacing:-.02em;
+    background:linear-gradient(100deg,#fff 10%,var(--gold) 60%,var(--coral) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+
+  /* ---------- sections ---------- */
+  section{
+    background:linear-gradient(180deg,var(--surface),var(--ink-2));
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 16px;margin-bottom:18px;box-shadow:var(--shadow);
+    animation:rise .6s cubic-bezier(.2,.8,.2,1) both;
+  }
+  section:nth-of-type(1){animation-delay:.04s}
+  section:nth-of-type(2){animation-delay:.10s}
+  section:nth-of-type(3){animation-delay:.16s}
+  .s-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .s-head .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .s-head h2{
+    font-family:"Syne",sans-serif;font-weight:700;font-size:14px;
+    letter-spacing:.18em;text-transform:uppercase;margin:0;color:var(--text);
+  }
+  .s-head .count{
+    margin-left:auto;font-family:"DM Mono",monospace;font-size:12px;color:var(--muted);
+  }
+
+  /* ---------- settings ---------- */
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .label{font-size:15px;font-weight:500}
+  .hint{font-size:12px;color:var(--muted);font-family:"DM Mono",monospace;margin-top:2px}
+  .cur{position:relative;flex:none}
+  .cur select{
+    appearance:none;-webkit-appearance:none;
+    font-family:"DM Mono",monospace;font-size:14px;font-weight:500;letter-spacing:.04em;
+    color:var(--text);background:var(--ink);
+    border:1px solid var(--line);border-radius:999px;
+    padding:11px 36px 11px 16px;cursor:pointer;
+  }
+  .cur::after{
+    content:"";position:absolute;right:15px;top:50%;width:7px;height:7px;
+    border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+    transform:translateY(-65%) rotate(45deg);pointer-events:none;
+  }
+
+  /* ---------- add person ---------- */
+  .add-row{display:flex;gap:9px;margin-bottom:14px}
+  .field{
+    flex:1;display:flex;align-items:center;background:var(--ink);
+    border:1px solid var(--line);border-radius:14px;padding:0 14px;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .field:focus-within{border-color:var(--coral);box-shadow:0 0 0 3px rgba(255,77,109,.15)}
+  .field input{
+    flex:1;background:none;border:none;outline:none;color:var(--text);
+    font-family:inherit;font-size:15px;padding:13px 0;min-width:0;
+  }
+  .field input::placeholder{color:var(--muted)}
+  .btn-add{
+    flex:none;border:none;cursor:pointer;border-radius:14px;
+    font-family:"Syne",sans-serif;font-weight:700;font-size:15px;
+    color:var(--ink);padding:0 18px;
+    background:linear-gradient(135deg,var(--gold),var(--coral));
+    transition:transform .12s, filter .2s;
+  }
+  .btn-add:active{transform:scale(.94)}
+  .btn-add.wide{width:100%;padding:14px;font-size:15px;letter-spacing:.02em}
+
+  /* ---------- people chips ---------- */
+  .people{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--surface-2);border:1px solid var(--line);
+    border-radius:999px;padding:8px 10px 8px 15px;
+    font-size:14px;font-weight:500;
+    animation:pop .3s cubic-bezier(.2,1.3,.4,1) both;
+  }
+  .chip .av{
+    width:22px;height:22px;border-radius:50%;flex:none;
+    display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink);
+    font-family:"Syne",sans-serif;
+  }
+  .chip .x{
+    width:20px;height:20px;border-radius:50%;border:none;cursor:pointer;
+    background:transparent;color:var(--muted);font-size:16px;line-height:1;
+    display:grid;place-items:center;transition:color .15s,background .15s;
+  }
+  .chip .x:hover{background:rgba(255,107,94,.15);color:var(--bad)}
+  .chip.guest{border-style:dashed;border-color:#5a4f6e;background:var(--surface)}
+  .chip .gtag{
+    font-family:"DM Mono",monospace;font-size:9px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--gold);
+    border:1px solid rgba(255,206,92,.4);border-radius:6px;padding:2px 5px;
+  }
+  .chip .gbtn{
+    width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;
+    background:transparent;color:var(--muted);font-size:13px;line-height:1;
+    display:grid;place-items:center;transition:.15s;
+  }
+  .chip .gbtn[aria-pressed="true"]{color:var(--gold)}
+  .chip .gbtn:hover{background:rgba(255,206,92,.14)}
+
+  /* ---------- expense cards ---------- */
+  .exp{
+    background:var(--surface-2);border:1px solid var(--line);border-radius:16px;
+    padding:14px;margin-bottom:12px;position:relative;
+    animation:pop .35s cubic-bezier(.2,1.1,.4,1) both;
+    transition:border-color .25s;
+  }
+  .exp.warn{border-color:rgba(255,107,94,.55)}
+  .exp-top{display:flex;gap:9px;align-items:stretch;margin-bottom:12px}
+  .exp-name{
+    flex:1;background:var(--ink);border:1px solid var(--line);border-radius:12px;
+    padding:11px 13px;color:var(--text);font-family:inherit;font-size:15px;
+    font-weight:600;outline:none;min-width:0;transition:border-color .2s;
+  }
+  .exp-name:focus{border-color:var(--gold)}
+  .amount-box{
+    display:flex;align-items:center;background:var(--ink);
+    border:1px solid var(--line);border-radius:12px;padding:0 12px;width:120px;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .amount-box:focus-within{border-color:var(--lime);box-shadow:0 0 0 3px rgba(200,245,96,.12)}
+  .amount-box .sym{font-family:"DM Mono",monospace;color:var(--muted);font-size:14px}
+  .amount-box .sym.post{order:2}
+  .amount-box input{
+    flex:1;background:none;border:none;outline:none;text-align:right;
+    color:var(--text);font-family:"DM Mono",monospace;font-size:16px;
+    font-weight:500;padding:11px 6px;min-width:0;width:100%;
+  }
+  .exp-del{
+    flex:none;width:42px;border:none;cursor:pointer;border-radius:12px;
+    background:var(--ink);border:1px solid var(--line);color:var(--muted);
+    font-size:18px;transition:color .15s,border-color .15s;
+  }
+  .exp-del:hover{color:var(--bad);border-color:rgba(255,107,94,.5)}
+  .toggles{display:flex;flex-wrap:wrap;gap:7px}
+  .toggle{
+    border:1px solid var(--line);background:var(--ink);color:var(--muted);
+    border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:inherit;
+    transition:all .16s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .toggle .tk{
+    width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted);
+    display:grid;place-items:center;font-size:9px;color:var(--ink);transition:all .16s;
+  }
+  .toggle[aria-pressed="true"]{
+    background:linear-gradient(135deg,rgba(200,245,96,.18),rgba(255,206,92,.14));
+    color:var(--text);border-color:var(--lime);
+  }
+  .toggle[aria-pressed="true"] .tk{background:var(--lime);border-color:var(--lime)}
+  .toggle:active{transform:scale(.93)}
+  .warn-tag{
+    display:none;margin-top:10px;font-size:12px;color:var(--bad);
+    font-family:"DM Mono",monospace;letter-spacing:.02em;
+  }
+  .exp.warn .warn-tag{display:block}
+
+  /* ---------- empty states ---------- */
+  .empty{
+    text-align:center;color:var(--muted);font-size:14px;padding:14px 8px;
+    font-family:"DM Mono",monospace;
+  }
+
+  /* ---------- results receipt ---------- */
+  .receipt{
+    position:relative;background:#faf6ec;color:#1a1622;border:none;
+    border-radius:6px;padding:30px 24px 22px;box-shadow:var(--shadow);
+    animation:rise .6s cubic-bezier(.2,.8,.2,1) .22s both;
+  }
+  .receipt::before,.receipt::after{
+    content:"";position:absolute;left:0;right:0;height:12px;
+    background-image:radial-gradient(circle at 8px 0, transparent 6px, #faf6ec 6.5px);
+    background-size:16px 12px;background-repeat:repeat-x;
+  }
+  .receipt::before{top:-6px;background-image:radial-gradient(circle at 8px 12px, transparent 6px, #faf6ec 6.5px)}
+  .receipt::after{bottom:-6px}
+  .r-head{text-align:center;border-bottom:2px dashed #cabfa8;padding-bottom:18px;margin-bottom:6px}
+  .r-head .t{
+    font-family:"Syne",sans-serif;font-weight:800;font-size:32px;line-height:1.05;
+    letter-spacing:.14em;color:#1a1410;text-transform:uppercase;
+    text-shadow:1px 1px 0 #e9dfca;
+  }
+  .r-head .sub{font-family:"DM Mono",monospace;font-size:11px;color:#7a7060;letter-spacing:.22em;text-transform:uppercase;margin-top:6px}
+  /* divider with centered label */
+  .r-divide{
+    display:flex;align-items:center;gap:12px;margin:18px 0 8px;
+    color:#8a7f6b;font-family:"DM Mono",monospace;font-size:10px;
+    letter-spacing:.22em;text-transform:uppercase;
+  }
+  .r-divide::before,.r-divide::after{content:"";flex:1;border-top:1.5px dashed #cabfa8}
+  /* itemized breakdown */
+  .r-item{padding:15px 0;border-bottom:1px dotted #ddd2bb;animation:fadein .4s ease both}
+  .r-item:last-child{border-bottom:none}
+  .r-item-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .r-item-head .it{font-family:"DM Sans",sans-serif;font-weight:700;font-size:16px;color:#221d17}
+  .r-item-head .tot{font-family:"DM Mono",monospace;font-weight:500;font-size:16px;font-variant-numeric:tabular-nums;color:#221d17}
+  .r-isubs{margin-top:9px}
+  .r-isub{
+    display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:9px;
+    padding:6px 0;font-family:"DM Mono",monospace;font-size:13px;color:#6a6253;
+  }
+  .r-isub .nm{display:flex;align-items:center;gap:8px;font-family:"DM Sans",sans-serif;font-weight:500;color:#3a342c}
+  .r-isub .adot{width:9px;height:9px;border-radius:50%;flex:none}
+  .r-isub .lead{border-bottom:1px dotted #cdc2ab;transform:translateY(-3px)}
+  .r-isub .sv{font-variant-numeric:tabular-nums}
+  .r-isub.none{display:block;color:#c2604f;font-style:italic;padding:4px 0;font-size:12px}
+  .r-row{
+    display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:9px;
+    padding:14px 0;font-family:"DM Mono",monospace;
+    animation:fadein .4s ease both;
+  }
+  .r-row .nm{font-size:15px;font-family:"DM Sans",sans-serif;font-weight:600;display:flex;align-items:center;gap:8px}
+  .nm-txt{display:flex;flex-direction:column;line-height:1.2}
+  .nm-txt .line1{display:flex;align-items:center;gap:6px}
+  .nm-txt small{font-family:"DM Mono",monospace;font-size:10px;color:#9a8f7c;font-weight:400;margin-top:3px;letter-spacing:.01em}
+  .gmini{
+    font-family:"DM Mono",monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+    color:#b8893a;background:rgba(255,206,92,.18);border:1px solid rgba(184,137,58,.35);
+    border-radius:5px;padding:1px 5px;font-style:normal;font-weight:500;
+  }
+  .r-row .nm .av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#faf6ec;font-family:"Syne",sans-serif}
+  .r-row .lead{border-bottom:1.5px dotted #c3b8a2;transform:translateY(-4px)}
+  .r-row .val{font-size:16px;font-weight:500;font-variant-numeric:tabular-nums}
+  .r-bar{grid-column:1/-1;height:5px;border-radius:3px;background:#e7ddc8;overflow:hidden;margin-top:7px}
+  .r-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--coral),var(--gold));transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .r-total{
+    display:flex;justify-content:space-between;align-items:baseline;
+    border-top:2px dashed #cabfa8;margin-top:8px;padding-top:14px;
+    font-family:"Syne",sans-serif;
+  }
+  .r-total .lbl{font-weight:700;font-size:14px;letter-spacing:.16em;text-transform:uppercase}
+  .r-total .sum{font-family:"DM Mono",monospace;font-weight:500;font-size:22px;font-variant-numeric:tabular-nums}
+  .r-foot{text-align:center;font-family:"DM Mono",monospace;font-size:10px;color:#9a8f7c;letter-spacing:.2em;margin-top:14px;text-transform:uppercase}
+
+  /* ---------- clear all ---------- */
+  .clear-all{
+    width:100%;margin-top:20px;background:none;border:1px solid var(--line);
+    color:var(--muted);border-radius:14px;padding:13px;cursor:pointer;
+    font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;transition:all .2s;
+  }
+  .clear-all:hover{color:var(--bad);border-color:rgba(255,107,94,.4)}
+
+  /* ---------- animations ---------- */
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @keyframes pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+  @keyframes fadein{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ---------- dedicated PDF sheet (wide, two-column) ---------- */
+  #printSheet{display:none;color:#1a1410;font-family:"DM Sans",sans-serif}
+  .ps-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1a1410;padding-bottom:10px;margin-bottom:6px}
+  .ps-title{font-family:"Syne",sans-serif;font-weight:800;font-size:32px;letter-spacing:.01em;line-height:1}
+  .ps-sub2{font-family:"DM Mono",monospace;font-size:11px;color:#6a6253;letter-spacing:.14em;text-transform:uppercase;margin-top:5px}
+  .ps-total{text-align:right;font-family:"Syne",sans-serif}
+  .ps-total span{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#6a6253}
+  .ps-total b{font-family:"DM Mono",monospace;font-weight:500;font-size:27px}
+  .ps-label{font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#8a7f6b;margin:16px 0 9px;border-bottom:1px dashed #cabfa8;padding-bottom:5px}
+  .ps-people{display:flex;flex-wrap:wrap;gap:9px}
+  .ps-person{border:1px solid #d9cfb8;border-radius:9px;padding:9px 13px;min-width:130px;break-inside:avoid}
+  .ps-pi{display:flex;align-items:center;gap:8px}
+  .ps-av{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff;font-family:"Syne",sans-serif;flex:none}
+  .ps-pn{font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px}
+  .ps-pamt{font-family:"DM Mono",monospace;font-size:19px;font-weight:500;margin-top:5px}
+  .ps-pnote{font-family:"DM Mono",monospace;font-size:9px;color:#8a7f6b;margin-top:2px;letter-spacing:.02em}
+  .ps-items{column-count:2;column-gap:24px}
+  .ps-item{break-inside:avoid;border:2.5px solid #1a1410;border-radius:10px;padding:11px 13px;margin-bottom:12px;background:#fffdf6}
+  .ps-ih{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:15px;border-bottom:2px solid #1a1410;padding-bottom:7px;margin-bottom:7px}
+  .ps-ih b:last-child{font-family:"DM Mono",monospace;font-weight:500}
+  .ps-sub{display:flex;justify-content:space-between;gap:10px;font-family:"DM Mono",monospace;font-size:12px;color:#5b5346;padding:3px 0}
+  .ps-sub .nm{font-family:"DM Sans",sans-serif;font-weight:500;color:#3a342c;display:flex;align-items:center;gap:6px}
+  .ps-sub.none{color:#c2604f;font-style:italic}
+  .ps-gtag{font-family:"DM Mono",monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#b8893a;border:1px solid rgba(184,137,58,.4);border-radius:4px;padding:1px 4px;font-weight:500}
+  .ps-empty{color:#9a8f7c;font-family:"DM Mono",monospace;font-size:12px;padding:8px}
+  .ps-foot{text-align:center;font-family:"DM Mono",monospace;font-size:10px;letter-spacing:.24em;color:#9a8f7c;margin-top:16px;text-transform:uppercase}
+
+  /* ---------- print: show only the PDF sheet ---------- */
+  @media print{
+    @page{margin:10mm}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    html,body{background:#fff!important;height:auto!important}
+    body::before,body::after{display:none!important}
+    .wrap{display:none!important}
+    #printSheet{
+      display:block!important;zoom:var(--ps-zoom,1);transform-origin:top left;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="kick">Saturday · split it up</span>
+      <h1>Party Tab</h1>
+    </div>
+  </header>
+
+  <!-- SETTINGS -->
+  <section>
+    <div class="s-head">
+      <span class="dot" style="background:var(--coral-soft)"></span>
+      <h2>Settings</h2>
+    </div>
+    <div style="margin-bottom:18px">
+      <div class="label">Receipt title</div>
+      <div class="hint" style="margin-bottom:9px">shown on the PDF — leave blank for “Party Tab”</div>
+      <label class="field">
+        <input id="titleInput" type="text" placeholder="Party Tab" autocomplete="off" maxlength="40">
+      </label>
+    </div>
+    <div class="set-row">
+      <div>
+        <div class="label">Currency</div>
+        <div class="hint">used for all amounts</div>
+      </div>
+      <div class="cur">
+        <select id="cur" aria-label="Currency">
+          <option value="MKD">MKD ден</option>
+          <option value="EUR">EUR €</option>
+          <option value="INR">INR ₹</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- PEOPLE -->
+  <section>
+    <div class="s-head">
+      <span class="dot" style="background:var(--coral)"></span>
+      <h2>People</h2>
+      <span class="count" id="kCount">0</span>
+    </div>
+    <div class="add-row">
+      <label class="field">
+        <input id="kInput" type="text" placeholder="Add a name…" autocomplete="off" maxlength="20">
+      </label>
+      <button class="btn-add" id="kAdd">Add</button>
+    </div>
+    <div class="people" id="people"></div>
+    <div class="empty" id="kEmpty">Add a few people first 👯</div>
+  </section>
+
+  <!-- EXPENSES -->
+  <section>
+    <div class="s-head">
+      <span class="dot" style="background:var(--gold)"></span>
+      <h2>Expenses</h2>
+      <span class="count" id="mCount">0</span>
+    </div>
+    <div id="expenses"></div>
+    <button class="btn-add wide" id="mAdd">+ Add expense</button>
+    <div class="empty" id="mEmpty" style="margin-top:12px">Chicken, beer, whisky… whatever you bought</div>
+  </section>
+
+  <!-- RESULTS -->
+  <div class="receipt" id="receipt">
+    <div class="r-head">
+      <div class="t">The Receipt</div>
+      <div class="sub">itemized split</div>
+    </div>
+    <div class="r-divide">Per item — who pays what</div>
+    <div id="items"></div>
+    <div class="r-divide">Per person — total</div>
+    <div id="results"></div>
+    <div class="r-total">
+      <span class="lbl">Total</span>
+      <span class="sum" id="grandTotal">—</span>
+    </div>
+    <div class="r-foot">★ have fun ★</div>
+  </div>
+
+  <button class="btn-add wide" id="savePdf" style="margin-top:18px">⬇  Save receipt as PDF</button>
+  <button class="clear-all" id="clearAll">Clear everything</button>
+</div>
+
+<!-- wide layout used only for PDF/print -->
+<div id="printSheet"></div>
+
+<script>
+"use strict";
+
+// ---------- currency ----------
+const CUR = {
+  EUR:{sym:"€", pos:"pre"},
+  INR:{sym:"₹", pos:"pre"},
+  MKD:{sym:"ден", pos:"post"}
+};
+function money(n){
+  const c = CUR[state.paraBirimi] || CUR.EUR;
+  const v = (Number(n)||0).toFixed(2);
+  return c.pos==="pre" ? c.sym+v : v+" "+c.sym;
+}
+
+// ---------- palette for avatars ----------
+const PAL = ["#ff4d6d","#ffce5c","#c8f560","#5ec8ff","#c08bff","#ff9b54","#4ddbb0","#ff7aa8"];
+function colorFor(id){ return PAL[id % PAL.length]; }
+function initialOf(name){ return (name.trim()[0] || "?").toUpperCase(); }
+
+// ---------- state ----------
+const KEY = "partyTab.v1";
+let state = load() || { paraBirimi:"MKD", baslik:"", kisiler:[], masraflar:[], seq:1 };
+function nextId(){ return state.seq++; }
+
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.seq==null) s.seq = 1 + Math.max(0,...s.kisiler.map(k=>k.id),...s.masraflar.map(m=>m.id)); return s; }
+  catch(e){ return null; }
+}
+
+// ---------- DOM refs ----------
+const $ = id => document.getElementById(id);
+const elPeople = $("people"), elExpenses = $("expenses"), elResults = $("results"), elItems = $("items");
+
+// ---------- people ----------
+function addPerson(){
+  const name = $("kInput").value.trim();
+  if(!name) return;
+  const id = nextId();
+  state.kisiler.push({id, ad:name});
+  state.masraflar.forEach(m => m.ortaklar.push(id)); // join every expense by default
+  $("kInput").value = "";
+  save(); renderPeople(); renderExpenses(); renderResults();
+  $("kInput").focus();
+}
+function removePerson(id){
+  state.kisiler = state.kisiler.filter(k => k.id !== id);
+  state.masraflar.forEach(m => m.ortaklar = m.ortaklar.filter(x => x !== id));
+  save(); renderPeople(); renderExpenses(); renderResults();
+}
+function toggleGuest(id){
+  const k = state.kisiler.find(x => x.id === id);
+  if(!k) return;
+  k.misafir = !k.misafir;
+  save(); renderPeople(); renderResults();
+}
+function renderPeople(){
+  elPeople.innerHTML = "";
+  state.kisiler.forEach(k=>{
+    const chip = document.createElement("div");
+    chip.className = "chip" + (k.misafir ? " guest" : "");
+    chip.innerHTML =
+      `<span class="av" style="background:${colorFor(k.id)}">${initialOf(k.ad)}</span>`+
+      `<span>${escapeHtml(k.ad)}</span>`+
+      (k.misafir ? `<span class="gtag">guest</span>` : "")+
+      `<button class="gbtn" aria-pressed="${k.misafir?"true":"false"}" title="Mark as guest — their share is split to everyone else">★</button>`+
+      `<button class="x" aria-label="Remove">×</button>`;
+    chip.querySelector(".gbtn").onclick = ()=>toggleGuest(k.id);
+    chip.querySelector(".x").onclick = ()=>removePerson(k.id);
+    elPeople.appendChild(chip);
+  });
+  $("kCount").textContent = state.kisiler.length;
+  $("kEmpty").style.display = state.kisiler.length ? "none" : "block";
+}
+
+// ---------- expenses ----------
+function addExpense(){
+  state.masraflar.push({ id:nextId(), ad:"", tutar:"", ortaklar: state.kisiler.map(k=>k.id) });
+  save(); renderExpenses(); renderResults();
+  const last = elExpenses.lastElementChild;
+  if(last) last.querySelector(".exp-name").focus();
+}
+function removeExpense(id){
+  state.masraflar = state.masraflar.filter(m => m.id !== id);
+  save(); renderExpenses(); renderResults();
+}
+function renderExpenses(){
+  elExpenses.innerHTML = "";
+  const c = CUR[state.paraBirimi] || CUR.EUR;
+  state.masraflar.forEach(m=>{
+    const card = document.createElement("div");
+    card.className = "exp";
+    const symHtml = `<span class="sym ${c.pos==="post"?"post":""}">${c.sym}</span>`;
+    card.innerHTML =
+      `<div class="exp-top">`+
+        `<input class="exp-name" type="text" placeholder="What did you buy?" maxlength="24" value="${escapeAttr(m.ad)}">`+
+        `<label class="amount-box">${symHtml}<input class="exp-amt" type="text" inputmode="decimal" placeholder="0" value="${escapeAttr(m.tutar)}"></label>`+
+        `<button class="exp-del" aria-label="Remove expense">🗑</button>`+
+      `</div>`+
+      `<div class="toggles"></div>`+
+      `<div class="warn-tag">⚠ no one selected — this item isn't split</div>`;
+
+    const nameInput = card.querySelector(".exp-name");
+    nameInput.addEventListener("input", ()=>{ m.ad = nameInput.value; save(); });
+
+    const amtInput = card.querySelector(".exp-amt");
+    amtInput.addEventListener("input", ()=>{
+      m.tutar = amtInput.value.replace(",", ".");
+      save(); renderResults(); refreshWarn(card, m);
+    });
+
+    card.querySelector(".exp-del").onclick = ()=>removeExpense(m.id);
+
+    const tg = card.querySelector(".toggles");
+    if(state.kisiler.length === 0){
+      tg.innerHTML = `<span class="empty" style="padding:4px">add people first</span>`;
+    } else {
+      state.kisiler.forEach(k=>{
+        const on = m.ortaklar.includes(k.id);
+        const b = document.createElement("button");
+        b.className = "toggle";
+        b.setAttribute("aria-pressed", on ? "true":"false");
+        b.innerHTML = `<span class="tk">✓</span>${escapeHtml(k.ad)}`;
+        b.onclick = ()=>{
+          if(m.ortaklar.includes(k.id)) m.ortaklar = m.ortaklar.filter(x=>x!==k.id);
+          else m.ortaklar.push(k.id);
+          b.setAttribute("aria-pressed", m.ortaklar.includes(k.id) ? "true":"false");
+          save(); renderResults(); refreshWarn(card, m);
+        };
+        tg.appendChild(b);
+      });
+    }
+    refreshWarn(card, m);
+    elExpenses.appendChild(card);
+  });
+  $("mCount").textContent = state.masraflar.length;
+  $("mEmpty").style.display = state.masraflar.length ? "none" : "block";
+}
+function refreshWarn(card, m){
+  const amt = parseFloat(m.tutar) || 0;
+  card.classList.toggle("warn", amt > 0 && m.ortaklar.length === 0);
+}
+
+// ---------- results ----------
+// shared calculation used by the on-screen receipt and the PDF sheet
+function computeSplit(){
+  const raw = {};
+  state.kisiler.forEach(k => raw[k.id] = 0);
+  let grand = 0;
+  state.masraflar.forEach(m=>{
+    const amt = parseFloat(m.tutar) || 0;
+    grand += amt;
+    const share = m.ortaklar.length ? amt / m.ortaklar.length : 0;
+    m.ortaklar.forEach(id => { if(raw[id] != null) raw[id] += share; });
+  });
+  const hosts = state.kisiler.filter(k => !k.misafir);
+  const guestTotal = state.kisiler.filter(k => k.misafir).reduce((s,k)=>s+raw[k.id], 0);
+  const totals = {};
+  state.kisiler.forEach(k=>{
+    if(hosts.length === 0) totals[k.id] = raw[k.id];           // no hosts: everyone pays own
+    else if(k.misafir)     totals[k.id] = 0;
+    else                   totals[k.id] = raw[k.id] + guestTotal / hosts.length;
+  });
+  return { raw, totals, hosts, guestTotal, grand };
+}
+
+function renderResults(){
+  const { raw, totals, hosts, grand } = computeSplit();
+  const max = Math.max(1, ...Object.values(totals));
+
+  // ----- itemized: per item, who pays what -----
+  elItems.innerHTML = "";
+  if(state.masraflar.length === 0){
+    elItems.innerHTML = `<div class="empty" style="color:#9a8f7c;padding:14px 0">no expenses yet</div>`;
+  } else {
+    state.masraflar.forEach((m,idx)=>{
+      const amt = parseFloat(m.tutar) || 0;
+      const share = m.ortaklar.length ? amt / m.ortaklar.length : 0;
+      const item = document.createElement("div");
+      item.className = "r-item";
+      item.style.animationDelay = (idx*0.05)+"s";
+      const title = (m.ad||"").trim() || "Untitled";
+      let subs;
+      if(m.ortaklar.length === 0){
+        subs = `<div class="r-isub none">${amt>0 ? "not split — no one selected" : "no one selected"}</div>`;
+      } else {
+        subs = m.ortaklar.map(id=>{
+          const k = state.kisiler.find(x=>x.id===id);
+          if(!k) return "";
+          const g = k.misafir ? ` <i class="gmini">guest</i>` : "";
+          return `<div class="r-isub">`+
+                   `<span class="nm"><span class="adot" style="background:${colorFor(k.id)}"></span>${escapeHtml(k.ad)}${g}</span>`+
+                   `<span class="lead"></span>`+
+                   `<span class="sv">${money(share)}</span>`+
+                 `</div>`;
+        }).join("");
+      }
+      item.innerHTML =
+        `<div class="r-item-head"><span class="it">${escapeHtml(title)}</span><span class="tot">${money(amt)}</span></div>`+
+        `<div class="r-isubs">${subs}</div>`;
+      elItems.appendChild(item);
+    });
+  }
+
+  // ----- per person total -----
+  elResults.innerHTML = "";
+  if(state.kisiler.length === 0){
+    elResults.innerHTML = `<div class="empty" style="color:#9a8f7c;padding:18px 0">add people to see the split here</div>`;
+  } else {
+    state.kisiler.forEach((k,i)=>{
+      const val = totals[k.id] || 0;
+      const row = document.createElement("div");
+      row.className = "r-row";
+      row.style.animationDelay = (i*0.04)+"s";
+      const gtag = k.misafir ? `<i class="gmini">guest</i>` : "";
+      const gnote = (k.misafir && hosts.length) ? `<small>consumed ${money(raw[k.id])} · split to all</small>` : "";
+      row.innerHTML =
+        `<span class="nm"><span class="av" style="background:${colorFor(k.id)}">${initialOf(k.ad)}</span>`+
+          `<span class="nm-txt"><span class="line1">${escapeHtml(k.ad)}${gtag}</span>${gnote}</span>`+
+        `</span>`+
+        `<span class="lead"></span>`+
+        `<span class="val">${money(val)}</span>`+
+        `<span class="r-bar"><i style="width:${(val/max*100).toFixed(1)}%"></i></span>`;
+      elResults.appendChild(row);
+    });
+  }
+  $("grandTotal").textContent = state.kisiler.length || state.masraflar.length ? money(grand) : "—";
+}
+
+// ---------- clear ----------
+function clearAll(){
+  if(!state.kisiler.length && !state.masraflar.length) return;
+  if(confirm("Delete all people and expenses? This can't be undone.")){
+    state = { paraBirimi: state.paraBirimi, baslik: state.baslik || "", kisiler:[], masraflar:[], seq:1 };
+    save(); renderAll();
+  }
+}
+
+// ---------- build the wide PDF sheet ----------
+function buildPrintSheet(){
+  const { raw, totals, hosts, grand } = computeSplit();
+  const date = new Date().toLocaleDateString(undefined, { day:"2-digit", month:"short", year:"numeric" });
+
+  let peopleHtml = state.kisiler.map(k=>{
+    const g = k.misafir ? `<span class="ps-gtag">guest</span>` : "";
+    const note = (k.misafir && hosts.length) ? `<div class="ps-pnote">consumed ${money(raw[k.id])} · split to all</div>` : "";
+    return `<div class="ps-person">`+
+      `<div class="ps-pi"><span class="ps-av" style="background:${colorFor(k.id)}">${initialOf(k.ad)}</span>`+
+      `<span class="ps-pn">${escapeHtml(k.ad)}${g}</span></div>`+
+      `<div class="ps-pamt">${money(totals[k.id]||0)}</div>${note}</div>`;
+  }).join("");
+  if(!state.kisiler.length) peopleHtml = `<div class="ps-empty">No people yet</div>`;
+
+  let itemsHtml = state.masraflar.map(m=>{
+    const amt = parseFloat(m.tutar) || 0;
+    const share = m.ortaklar.length ? amt / m.ortaklar.length : 0;
+    const title = (m.ad||"").trim() || "Untitled";
+    let subs;
+    if(!m.ortaklar.length){
+      subs = `<div class="ps-sub none">not split — no one selected</div>`;
+    } else {
+      subs = m.ortaklar.map(id=>{
+        const k = state.kisiler.find(x=>x.id===id);
+        if(!k) return "";
+        const g = k.misafir ? `<span class="ps-gtag">guest</span>` : "";
+        return `<div class="ps-sub"><span class="nm">${escapeHtml(k.ad)}${g}</span><span>${money(share)}</span></div>`;
+      }).join("");
+    }
+    return `<div class="ps-item"><div class="ps-ih"><b>${escapeHtml(title)}</b><b>${money(amt)}</b></div>${subs}</div>`;
+  }).join("");
+  if(!state.masraflar.length) itemsHtml = `<div class="ps-empty">No expenses yet</div>`;
+
+  // more items → 3 columns to stay short
+  const cols = state.masraflar.length > 8 ? 3 : 2;
+
+  $("printSheet").innerHTML =
+    `<div class="ps-head">`+
+      `<div><div class="ps-title">${escapeHtml((state.baslik||"").trim() || "Party Tab")}</div><div class="ps-sub2">Receipt · ${date} · ${state.paraBirimi}</div></div>`+
+      `<div class="ps-total"><span>Total</span><b>${money(grand)}</b></div>`+
+    `</div>`+
+    `<div class="ps-label">Per person — total</div>`+
+    `<div class="ps-people">${peopleHtml}</div>`+
+    `<div class="ps-label">Per item — who pays what</div>`+
+    `<div class="ps-items" style="column-count:${cols}">${itemsHtml}</div>`+
+    `<div class="ps-foot">★ have fun ★</div>`;
+}
+
+// ---------- helpers ----------
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/'/g,"&#39;"); }
+
+// ---------- wire up ----------
+function renderAll(){ renderPeople(); renderExpenses(); renderResults(); }
+$("kAdd").onclick = addPerson;
+$("kInput").addEventListener("keydown", e=>{ if(e.key==="Enter") addPerson(); });
+$("mAdd").onclick = addExpense;
+$("clearAll").onclick = clearAll;
+// Fallback: browser print dialog (used only if the PDF libraries fail to load)
+function printFallback(){
+  const ps = $("printSheet");
+  // measure the sheet off-screen at real A4 printable width (~719px @ 10mm margins)
+  ps.style.cssText = "display:block;position:fixed;left:-9999px;top:0;width:719px";
+  const h = ps.scrollHeight;
+  ps.style.cssText = "";                          // back to hidden (stylesheet controls print)
+  const usableH = 1040;                           // ~A4 printable height in CSS px
+  const zoom = Math.min(1, usableH / h);
+  document.documentElement.style.setProperty("--ps-zoom", zoom);
+
+  const prev = document.title;
+  document.title = "Party-Tab-Receipt";           // default PDF file name
+  const cleanup = ()=>{ document.title = prev; };
+  window.addEventListener("afterprint", cleanup, { once:true });
+  setTimeout(cleanup, 60000);
+  window.print();
+}
+
+// Build a real .pdf file in the browser and download it — works on phones,
+// no print dialog required (in-app browsers, iOS Safari, Android Chrome, …).
+async function downloadPdf(){
+  const haveLibs = window.html2canvas && window.jspdf && window.jspdf.jsPDF;
+  if(!haveLibs){ printFallback(); return; }       // offline / CDN blocked → print
+
+  const ps = $("printSheet");
+  // render the sheet off-screen at the real A4 printable width (~719px @ 10mm margins)
+  ps.style.cssText = "display:block;position:absolute;left:-99999px;top:0;width:719px;background:#fff;padding:0";
+  let canvas;
+  try{
+    if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(_){} }
+    canvas = await html2canvas(ps, { scale: 2, backgroundColor:"#ffffff", useCORS:true });
+  } finally {
+    ps.style.cssText = "";                         // hide again
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit:"pt", format:"a4", orientation:"portrait" });
+  const pageW = pdf.internal.pageSize.getWidth();  // 595.28 pt
+  const pageH = pdf.internal.pageSize.getHeight(); // 841.89 pt
+  const margin = 28;                               // ~10mm
+  const maxW = pageW - margin*2;
+  const maxH = pageH - margin*2;
+
+  // fit the rendered sheet inside one A4 page, preserving aspect ratio
+  const ratio = canvas.width / canvas.height;
+  let w = maxW, h = w / ratio;
+  if(h > maxH){ h = maxH; w = h * ratio; }
+  const x = (pageW - w) / 2;
+
+  pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", x, margin, w, h);
+  pdf.save("Party-Tab-Receipt.pdf");
+}
+
+$("savePdf").onclick = async (e)=>{
+  const btn = e.currentTarget;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Generating PDF…";
+  buildPrintSheet();
+  try{
+    await downloadPdf();
+  }catch(err){
+    console.error("PDF generation failed, falling back to print:", err);
+    printFallback();
+  }finally{
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+};
+$("cur").value = state.paraBirimi;
+$("cur").onchange = e=>{ state.paraBirimi = e.target.value; save(); renderExpenses(); renderResults(); };
+$("titleInput").value = state.baslik || "";
+$("titleInput").addEventListener("input", e=>{ state.baslik = e.target.value; save(); });
+
+renderAll();
+
+// register service worker so the app is installable and works offline
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("sw.js").catch(err=>console.warn("SW registration failed:", err));
+  });
+}
+</script>
+</body>
+</html>
