@@ -160,6 +160,18 @@
   }
   .chip .x:hover{background:rgba(255,107,94,.15);color:var(--bad)}
   .chip.guest{border-style:dashed;border-color:#5a4f6e;background:var(--surface)}
+
+  /* ---------- guest coverage popover (shown only on tap) ---------- */
+  .gcover-back{position:fixed;inset:0;z-index:60;background:rgba(8,6,14,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;animation:gcfade .15s ease}
+  @keyframes gcfade{from{opacity:0}to{opacity:1}}
+  .gcover{width:100%;max-width:330px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .gcover h4{font-family:"Syne",sans-serif;font-weight:700;font-size:17px;margin:0 0 4px}
+  .gc-hint{font-family:"DM Mono",monospace;font-size:12px;color:var(--muted);margin-bottom:15px;min-height:15px}
+  .gc-list{display:flex;flex-wrap:wrap;gap:8px}
+  .gc-opt{display:inline-flex;align-items:center;gap:7px;background:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 13px 7px 7px;font-size:14px;font-weight:500;cursor:pointer;user-select:none;transition:border-color .15s, background .15s}
+  .gc-opt.on{border-color:var(--coral);background:rgba(255,77,109,.14)}
+  .gc-opt .gc-dot{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;font-family:"Syne",sans-serif}
+  .gc-done{margin-top:18px;width:100%;padding:12px;border:none;border-radius:13px;background:var(--coral);color:#fff;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer}
   .chip .gtag{
     font-family:"DM Mono",monospace;font-size:9px;letter-spacing:.14em;
     text-transform:uppercase;color:var(--gold);
@@ -501,6 +513,7 @@ function addPerson(){
 function removePerson(id){
   state.kisiler = state.kisiler.filter(k => k.id !== id);
   state.masraflar.forEach(m => m.ortaklar = m.ortaklar.filter(x => x !== id));
+  state.kisiler.forEach(k => { if(Array.isArray(k.odeyenler)) k.odeyenler = k.odeyenler.filter(x => x !== id); });
   save(); renderPeople(); renderExpenses(); renderResults();
 }
 function toggleGuest(id){
@@ -518,14 +531,63 @@ function renderPeople(){
       `<span class="av" style="background:${colorFor(k.id)}">${initialOf(k.ad)}</span>`+
       `<span>${escapeHtml(k.ad)}</span>`+
       (k.misafir ? `<span class="gtag">guest</span>` : "")+
-      `<button class="gbtn" aria-pressed="${k.misafir?"true":"false"}" title="Mark as guest — their share is split to everyone else">★</button>`+
+      `<button class="gbtn" aria-pressed="${k.misafir?"true":"false"}" title="Mark as guest — their share is split to all (tap the chip to choose who covers them)">★</button>`+
       `<button class="x" aria-label="Remove">×</button>`;
-    chip.querySelector(".gbtn").onclick = ()=>toggleGuest(k.id);
-    chip.querySelector(".x").onclick = ()=>removePerson(k.id);
+    chip.querySelector(".gbtn").onclick = (e)=>{ e.stopPropagation(); toggleGuest(k.id); };
+    chip.querySelector(".x").onclick = (e)=>{ e.stopPropagation(); removePerson(k.id); };
+    if(k.misafir){
+      chip.style.cursor = "pointer";
+      chip.addEventListener("click", (e)=>{ if(e.target.closest("button")) return; openGuestCover(k.id); });
+    }
     elPeople.appendChild(chip);
   });
   $("kCount").textContent = state.kisiler.length;
   $("kEmpty").style.display = state.kisiler.length ? "none" : "block";
+}
+
+// tap a guest chip → pick who covers their share (default: everyone → "split to all")
+function openGuestCover(id){
+  const k = state.kisiler.find(x => x.id === id);
+  if(!k || !k.misafir) return;
+  const hosts = state.kisiler.filter(h => !h.misafir);
+  if(!hosts.length) return;                       // no one to assign the share to
+
+  const back = document.createElement("div");
+  back.className = "gcover-back";
+  const box = document.createElement("div");
+  box.className = "gcover";
+  back.appendChild(box);
+
+  function draw(){
+    const sel = new Set(guestPayerIds(k, hosts));
+    const isAll = sel.size === hosts.length;
+    box.innerHTML =
+      `<h4>Who pays for ${escapeHtml(k.ad)}?</h4>`+
+      `<div class="gc-hint">${isAll ? "split to all" : "split to " + hosts.filter(h=>sel.has(h.id)).map(h=>escapeHtml(h.ad)).join(", ")}</div>`+
+      `<div class="gc-list">`+
+        hosts.map(h=>`<span class="gc-opt ${sel.has(h.id)?"on":""}" data-id="${h.id}">`+
+          `<span class="gc-dot" style="background:${colorFor(h.id)}">${initialOf(h.ad)}</span>${escapeHtml(h.ad)}</span>`).join("")+
+      `</div>`+
+      `<button class="gc-done">Done</button>`;
+    box.querySelectorAll(".gc-opt").forEach(el=>{
+      el.onclick = ()=>{
+        const hid = parseInt(el.dataset.id, 10);
+        const cur = new Set(guestPayerIds(k, hosts));   // start from the effective set
+        if(cur.has(hid)){ if(cur.size > 1) cur.delete(hid); } // keep at least one
+        else cur.add(hid);
+        // full selection => store empty = "everyone", so future people auto-join "all"
+        k.odeyenler = (cur.size === hosts.length) ? [] : [...cur];
+        save(); renderResults(); draw();
+      };
+    });
+    box.querySelector(".gc-done").onclick = close;
+  }
+  function close(){ back.remove(); document.removeEventListener("keydown", onKey); }
+  function onKey(e){ if(e.key === "Escape") close(); }
+  back.addEventListener("click", (e)=>{ if(e.target === back) close(); });
+  document.addEventListener("keydown", onKey);
+  draw();
+  document.body.appendChild(back);
 }
 
 // ---------- expenses ----------
@@ -598,6 +660,20 @@ function refreshWarn(card, m){
 
 // ---------- results ----------
 // shared calculation used by the on-screen receipt and the PDF sheet
+// who covers a guest's share. empty/invalid odeyenler => everyone (default).
+function guestPayerIds(k, hosts){
+  const valid = Array.isArray(k.odeyenler) ? k.odeyenler.filter(id => hosts.some(h => h.id === id)) : [];
+  return valid.length ? valid : hosts.map(h => h.id);
+}
+// note text shown under a guest: "consumed X · split to all" or "· split to Ali, Mehmet"
+function guestNote(k, hosts, raw){
+  const ids = guestPayerIds(k, hosts);
+  const who = ids.length === hosts.length
+    ? "all"
+    : ids.map(id => { const p = state.kisiler.find(x => x.id === id); return p ? p.ad : ""; }).filter(Boolean).join(", ");
+  return `consumed ${money(raw[k.id])} · split to ${who}`;
+}
+
 function computeSplit(){
   const raw = {};
   state.kisiler.forEach(k => raw[k.id] = 0);
@@ -609,14 +685,19 @@ function computeSplit(){
     m.ortaklar.forEach(id => { if(raw[id] != null) raw[id] += share; });
   });
   const hosts = state.kisiler.filter(k => !k.misafir);
-  const guestTotal = state.kisiler.filter(k => k.misafir).reduce((s,k)=>s+raw[k.id], 0);
   const totals = {};
   state.kisiler.forEach(k=>{
-    if(hosts.length === 0) totals[k.id] = raw[k.id];           // no hosts: everyone pays own
-    else if(k.misafir)     totals[k.id] = 0;
-    else                   totals[k.id] = raw[k.id] + guestTotal / hosts.length;
+    totals[k.id] = (hosts.length === 0) ? raw[k.id]         // no hosts: everyone pays own
+                 : (k.misafir ? 0 : raw[k.id]);             // guests start at 0, hosts at own
   });
-  return { raw, totals, hosts, guestTotal, grand };
+  if(hosts.length > 0){
+    state.kisiler.filter(k => k.misafir).forEach(g=>{        // spread each guest to their payers
+      const ids = guestPayerIds(g, hosts);
+      const share = raw[g.id] / ids.length;
+      ids.forEach(id => { totals[id] += share; });
+    });
+  }
+  return { raw, totals, hosts, grand };
 }
 
 function renderResults(){
@@ -668,7 +749,7 @@ function renderResults(){
       row.className = "r-row";
       row.style.animationDelay = (i*0.04)+"s";
       const gtag = k.misafir ? `<i class="gmini">guest</i>` : "";
-      const gnote = (k.misafir && hosts.length) ? `<small>consumed ${money(raw[k.id])} · split to all</small>` : "";
+      const gnote = (k.misafir && hosts.length) ? `<small>${guestNote(k, hosts, raw)}</small>` : "";
       row.innerHTML =
         `<span class="nm"><span class="av" style="background:${colorFor(k.id)}">${initialOf(k.ad)}</span>`+
           `<span class="nm-txt"><span class="line1">${escapeHtml(k.ad)}${gtag}</span>${gnote}</span>`+
@@ -698,7 +779,7 @@ function buildPrintSheet(){
 
   let peopleHtml = state.kisiler.map(k=>{
     const g = k.misafir ? `<span class="ps-gtag">guest</span>` : "";
-    const note = (k.misafir && hosts.length) ? `<div class="ps-pnote">consumed ${money(raw[k.id])} · split to all</div>` : "";
+    const note = (k.misafir && hosts.length) ? `<div class="ps-pnote">${guestNote(k, hosts, raw)}</div>` : "";
     return `<div class="ps-person">`+
       `<div class="ps-pi"><span class="ps-av" style="background:${colorFor(k.id)}">${initialOf(k.ad)}</span>`+
       `<span class="ps-pn">${escapeHtml(k.ad)}${g}</span></div>`+
